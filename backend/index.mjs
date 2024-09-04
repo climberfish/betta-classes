@@ -1,5 +1,6 @@
-import express from 'express';
-import bodyParser from 'body-parser';
+import express from 'express'; // framework web
+import bodyParser from 'body-parser'; // middleware para parsear o corpo das requisições
+import knex from 'knex';
 
 const app = express();
 const PORT = 3000;
@@ -11,50 +12,50 @@ function olaMundo(req, res) {
 }
 app.get('/', olaMundo);
 
-
-// -----------------------------------------
-// ---------------- Tarefas ----------------
-// -----------------------------------------
-const tarefas = [
-    { id: 1, feita: false, nome: 'Acordar' },
-    { id: 2, feita: false, nome: 'Trabalhar' },
-    { id: 3, feita: false, nome: 'Lavar louça' },
-    { id: 4, feita: false, nome: 'Dormir' },
-];
+const bancoDeDados = knex({
+    client: 'pg',
+    connection: {
+        host: 'localhost',
+        port: 5432,
+        user: 'user-tarefa',
+        database: 'tarefas',
+        password: 'passwd',
+        ssl: false,
+    },
+});
 
 // Acrônimo CRUD
 
 // C - Create
-app.post('/tarefa', (req, res) => {
+app.post('/tarefa', async (req, res) => {
     const tarefa = req.body;
-    const novaTarefa = {
-        id: Math.round(Math.random() * 10000),
-        nome: tarefa.nome,
-        feita: false
-    };
-    tarefas.push(novaTarefa);
-    res.json(novaTarefa);
+    const novaTarefa = { nome: tarefa.nome };
+    // INSERT INTO tarefas (nome, feita) VALUES (novaTarefa.nome, novaTarefa.feita);
+    const tarefaDoBanco = await bancoDeDados('tarefas').insert(novaTarefa).returning('*');
+    // const query = `INSERT INTO tarefas (nome, feita) VALUES ('${tarefa.nome}', FALSE) RETURNING *`;
+    // const tarefaDoBanco = await bancoDeDados.raw(query);
+    res.json(tarefaDoBanco);
 });
 
 // R - Read
-app.get('/tarefas', (req, res) => {
+app.get('/tarefas', async (req, res) => {
+    const filtro = req.query;
+    const tarefas = await bancoDeDados('tarefas').select('*').where(filtro); // SELECT * FROM tarefas;
     res.json(tarefas);
 });
 
 // U - Update
-app.patch('/tarefa/:id', (req, res) => {
+app.patch('/tarefa/:id', async (req, res) => {
     const tarefa = req.body;
     const id = req.params.id;
-    const indiceTarefa = tarefas.findIndex(tarefa => tarefa.id == id);
-    tarefas[indiceTarefa] = { ...tarefas[indiceTarefa], ...tarefa };
-    res.json(tarefas[indiceTarefa]);
+    await bancoDeDados('tarefas').update(tarefa).where({ id });
+    res.json(tarefa);
 });
 
 // D - Delete
-app.delete('/tarefa/:id', (req, res) => {
+app.delete('/tarefa/:id', async (req, res) => {
     const id = req.params.id;
-    const indiceTarefa = tarefas.findIndex(tarefa => tarefa.id == id);
-    tarefas.splice(indiceTarefa, 1);
+    await bancoDeDados('tarefas').delete().where({ id });
     res.json({ id });
 });
 
